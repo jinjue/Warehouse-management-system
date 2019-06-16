@@ -1,0 +1,105 @@
+--创建入库触发器
+create trigger Input_updte on I
+for insert
+as
+begin
+	declare @Inum int		--入库量
+	declare @Hno char(20)	--货物数量
+	declare @Cno char(20)	--仓库编号
+	declare @Cinv int		--库存量
+	select @Inum=Inum from inserted
+	select @Hno=I.Hno from I
+	select @Cno=I.Cno from I
+	select @Cinv=Limit.Cinv from Limit
+	if @Inum+@Cinv<=90000 and @Inum+@Cinv>=100
+		print '入库成功'
+		update Limit
+		set Cinv=Cinv+@Inum
+		where @Hno=Hno and @Cno=Cno
+	if @Inum+@Cinv>90000
+	begin
+		raiserror('超过仓库最大容量，请减少入库产品数量',16,1)
+		rollback transaction
+	end
+end
+
+--创建出库触发器
+create trigger Output_update on O
+for insert 
+as
+begin
+    declare @Onum int		--出库量
+    declare @Hno char(20)	--货物数量
+    declare @Cno char(20)	--仓库编号
+    declare @Cinv int		--库存量
+    select @Onum=Onum from inserted
+    select @Hno=O.Hno from O
+    select @Cno=O.Cno from O
+    select @Cinv=Limit.Cinv from Limit
+    if (@Cinv-@Onum)>=100 
+          print '出库成功！'
+          update Limit
+          set Cinv=Cinv-@Onum
+          where @Hno=Hno and @Cno=Cno
+    if (@Cinv-@Onum)<100 and (@Cinv-@Onum)>0 
+    begin
+      raiserror('接近仓库最低库存量，请增加入库产品！',16,1)
+      rollback transaction
+    end
+    if (@Cinv-@Onum)<=0 
+    begin
+      raiserror('当前库存不足，少于出库量，请减少出库量！',16,1)
+      rollback transaction
+    end
+end
+
+/*存储过程*/
+/*账户密码*/
+
+--use 仓库管理数据库
+create procedure login_proc @user char(20),
+@pws varchar(20),@status int output
+as					-------------登录验证
+	select @status=COUNT(*) from Manager
+		where Mpassword=rtrim(ltrim(@pws))and Mno=RTRIM(LTRIM(@user))
+	if @status=1 set @status=0-------------------登陆成功
+	else
+		begin
+			select @status=COUNT(*) from Manager 
+				where Mno=RTRIM(LTRIM(@user))
+			if @status=0 set @status=1---------------------账号不存在
+			else set @status=2-----------------------------密码错误
+		end
+GO
+
+
+--根据货物编号查询库存情况
+create procedure select_proc @Hno char(20)
+as
+select *from Limit where Hno=@Hno
+GO
+
+execute select_proc @Hno='V0023'
+select *from 
+
+--drop procedure select_proc
+
+--入库管理
+create procedure insert_proc @Ino char(20),@Hno char(20),@Cno char(20),@Inum int,@Mno char(20),@Itime datetime
+as					
+    if Exists(select * from I where Ino=@Ino)
+	begin
+	select *from I where Ino=@Ino
+	end
+	else
+	insert into I(Ino,Hno,Cno,Inum,Mno,Itime) values(@Ino,@Hno,@Cno,@Inum,@Mno,@Itime)
+GO
+
+execute insert_proc @Ino='I20190614151833',@Hno='V0003',@Cno='FZ_CS_GS_3592',@Inum=15,@Mno='A917181101',@Itime='2019-06-14 15:18:33.290'
+
+
+select *from I
+select *from Limit
+
+
+--drop procedure insert_proc
