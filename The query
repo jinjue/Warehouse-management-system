@@ -1,105 +1,336 @@
---创建入库触发器
-create trigger Input_updte on I
-for insert
+///存储过程---入库
+
+drop procedure ruku
+
+create procedure ruku(
+     @Ino varchar(20),--入库编号
+     @Hno int,--类型编号 
+     @Cno varchar(20),     --类型名字
+     @Inum int, --入库数量
+     @Mno varchar(20)  --工号
+     )
 as
+declare 
+@Lmax int,        --最大库存值
+@Cinv int         --当前库存值
+select @Lmax=Lmax,@Cinv=Cinv from Limit
+if @Lmax>=@Inum+@Cinv   ----如果入库数量加上库存总量小于库存最大界限
 begin
-	declare @Inum int		--入库量
-	declare @Hno char(20)	--货物数量
-	declare @Cno char(20)	--仓库编号
-	declare @Cinv int		--库存量
-	select @Inum=Inum from inserted
-	select @Hno=I.Hno from I
-	select @Cno=I.Cno from I
-	select @Cinv=Limit.Cinv from Limit
-	if @Inum+@Cinv<=90000 and @Inum+@Cinv>=100
-		print '入库成功'
-		update Limit
-		set Cinv=Cinv+@Inum
-		where @Hno=Hno and @Cno=Cno
-	if @Inum+@Cinv>90000
-	begin
-		raiserror('超过仓库最大容量，请减少入库产品数量',16,1)
-		rollback transaction
-	end
+insert into I values(@Ino,@Hno,@Cno,@Inum,@Mno,GETDATE()) 
+end
+else
+print'库存积压，入库失败'
+
+
+select * from H
+//
+
+---触发器--入库后库存表自动增加数据  
+ create trigger ruku_after
+ on I
+ for insert
+ as
+ declare 
+		@Hno NCHAR (20) , --货物编号
+		@Hname NVARCHAR(20) , --货物名称
+		@Htype NVARCHAR(20),        --货物类型
+		@Hnum INT,                 --货物数量
+		@Hprice INT                --货物成本价
+select @Hno=Hno,@Hnum=Inum
+ from inserted
+select @Hname=Hname,@Htype=Htype,@Hprice=Hprice from H where Hno=@Hno 
+if not exists ( select Hno from H where Hno=@Hno )
+begin
+insert into H values(@Hno,@Hname,@Htype,@Hnum,@Hprice)
+end 
+begin
+update H
+set Hnum=Hnum+@Hnum  --更新货物的数量
+where Hno=@Hno
+
+update Limit
+set Cinv=Cinv+@Hnum  --更新库存量
+ end 
+
+--drop trigger ruku_after
+
+
+
+//存储过程--出库
+drop procedure chuku
+
+
+create procedure chuku(
+	 @Hno nchar(20),              --货物编号
+	 @Cno nchar(20),              --仓库编号
+	 @Onum int ,                  --仓库量
+	 @Mno nchar(20),              --管理员编号
+	 @Kno nchar(20)               --客户编号
+     )
+as
+declare 
+@Lmin int,
+@Cinv int
+select @Lmin=Lmin,@Cinv=Cinv from Limit
+if @Cinv-@Onum>=@Lmin    ----如果出库数量减去库存总量大于库存最小界限
+begin
+insert into O values('O'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),@Hno,@Cno,@Onum,@Mno,@Kno,GETDATE()) 
+print '出库成功！'
 end
 
---创建出库触发器
-create trigger Output_update on O
-for insert 
-as
-begin
-    declare @Onum int		--出库量
-    declare @Hno char(20)	--货物数量
-    declare @Cno char(20)	--仓库编号
-    declare @Cinv int		--库存量
-    select @Onum=Onum from inserted
-    select @Hno=O.Hno from O
-    select @Cno=O.Cno from O
-    select @Cinv=Limit.Cinv from Limit
-    if (@Cinv-@Onum)>=100 
-          print '出库成功！'
-          update Limit
-          set Cinv=Cinv-@Onum
-          where @Hno=Hno and @Cno=Cno
-    if (@Cinv-@Onum)<100 and (@Cinv-@Onum)>0 
-    begin
+else
+ begin
       raiserror('接近仓库最低库存量，请增加入库产品！',16,1)
-      rollback transaction
+      
     end
     if (@Cinv-@Onum)<=0 
     begin
       raiserror('当前库存不足，少于出库量，请减少出库量！',16,1)
-      rollback transaction
+      
     end
+    
+execute chuku @Hno='V0023' ,@Cno='FZ_CL_HS_3595',@Onum=1000,@Mno='A917181104',@Kno='K4362611'
+
+//触发器--出库后库存表自动减少数据
+ create trigger chuku_after
+ on O
+ for insert
+ as
+ declare 
+    @Hno NCHAR (20) , --货物编号
+	@Hname NVARCHAR(20) , --货物名称
+	@Htype NVARCHAR(20),        --货物类型
+	@Hnum INT,                 --货物数量
+	@Hprice INT                --货物成本价
+select @Hno=Hno,@Hnum=Onum
+ from inserted
+select @Hname=Hname,@Htype=Htype,@Hprice=Hprice from H where Hno=@Hno 
+begin
+update H
+set Hnum=Hnum-@Hnum  --更新货物的数量
+where Hno=@Hno
+
+update Limit
+set Cinv=Cinv-@Hnum  --更新库存量
+ end 
+
+drop table loan
+
+
+//存储过程--借货
+drop procedure jiehuo 
+
+create procedure jiehuo(
+	 @Kno NCHAR(20),              --客户编号
+	 @Hno NCHAR(20),             --货物编号
+	 @Bnum INT,                 --租借量
+	 @Rnum INT,
+	 @Rtime DATETIME          
+     )
+as
+declare 
+@Lmin int,
+@Cinv int
+select @Lmin=Lmin,@Cinv=Cinv from Limit
+if @Cinv-@Bnum>=@Lmin
+begin
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),@Kno,@Hno,@Bnum,@Rnum,GETDATE(),NULL) 
+print '出库成功！'
 end
+else
+print'当前库存为'+convert(char(4),@Cinv)+'不足以提供借出量 请重新输入归还数量'
 
-/*存储过程*/
-/*账户密码*/
-
---use 仓库管理数据库
-create procedure login_proc @user char(20),
-@pws varchar(20),@status int output
-as					-------------登录验证
-	select @status=COUNT(*) from Manager
-		where Mpassword=rtrim(ltrim(@pws))and Mno=RTRIM(LTRIM(@user))
-	if @status=1 set @status=0-------------------登陆成功
-	else
-		begin
-			select @status=COUNT(*) from Manager 
-				where Mno=RTRIM(LTRIM(@user))
-			if @status=0 set @status=1---------------------账号不存在
-			else set @status=2-----------------------------密码错误
-		end
-GO
+execute jiehuo @Kno='K4362610',@Hno='V0090',@Bnum=1000,@Rnum=0,@Rtime=NULL
 
 
---根据货物编号查询库存情况
+
+//触发器--借货之后
+ create trigger jiehuo_after
+ on BR
+ for insert
+ as
+ declare 
+     @Jno NCHAR(30),              --借条编号
+	 @Kno NCHAR(20),              --客户编号
+	 @Hno NCHAR(20),             --货物编号
+	 @Bnum INT,                 --租借量
+	 @Btime DATETIME           --借出时间
+select @Hno=Hno
+ from inserted
+select @Jno=Jno,@Kno=Kno,@Bnum=Bnum, @Btime=Btime from BR where Hno=@Hno 
+begin
+update H
+set Hnum=Hnum-@Bnum  --更新货物的数量
+where Hno=@Hno
+
+update Limit
+set Cinv=Cinv-@Bnum  --更新库存量
+ end 
+
+
+
+ 
+///存储过程--还货
+drop procedure huanhuo
+
+
+create procedure huanhuo(
+     @Jno NCHAR(30),              --借条编号
+	 @Rnum INT                 --归还量
+     )
+as
+declare 
+@Lmax int,
+@Cinv int,
+@Bnum int
+select @Lmax=Lmax,@Cinv=Cinv from Limit
+select @Bnum=Bnum from BR
+if @Lmax-@Cinv>=@Rnum and @Rnum<=@Bnum
+begin 
+update BR set Rtime=GETDATE(),Rnum=Rnum+@Rnum where Jno=@Jno
+end
+else 
+print'归还数量为'+convert(char(4),@Rnum)+'实际应归还数量为'+convert(char(4),@Bnum)+'请重新输入归还数量'
+
+execute huanhuo @Jno='O20190620005247' ,@Rnum=44
+
+//触发器--还货之后
+drop trigger huanhuo_after
+
+create trigger huanhuo_after
+on BR
+ for insert
+ as
+ declare 
+     @Jno NCHAR(30),              --借条编号
+	 @Kno NCHAR(20),              --客户编号
+	 @Hno NCHAR(20),             --货物编号
+	 @Bnum INT,                 --租借量
+	 @Btime DATETIME           --借出时间
+select @Hno=Hno
+ from inserted
+select @Jno=Jno,@Kno=Kno,@Bnum=Bnum, @Btime=Btime from BR where Hno=@Hno 
+begin
+update H
+set Hnum=Hnum+@Bnum  --更新货物的数量
+where Hno=@Hno
+
+update Limit
+set Cinv=Cinv+@Bnum  --更新库存量
+ end
+
+
+
+//查询某种商品的库存情况
+drop procedure select_proc
+
 create procedure select_proc @Hno char(20)
 as
-select *from Limit where Hno=@Hno
+select *from H where Hno=@Hno
 GO
 
-execute select_proc @Hno='V0023'
-select *from 
+execute  select_proc @Hno='V0023'
 
---drop procedure select_proc
 
---入库管理
-create procedure insert_proc @Ino char(20),@Hno char(20),@Cno char(20),@Inum int,@Mno char(20),@Itime datetime
-as					
-    if Exists(select * from I where Ino=@Ino)
-	begin
-	select *from I where Ino=@Ino
-	end
-	else
-	insert into I(Ino,Hno,Cno,Inum,Mno,Itime) values(@Ino,@Hno,@Cno,@Inum,@Mno,@Itime)
+
+
+
+///初始化库存
+
+drop procedure Initialize
+
+create  procedure Initialize (
+		@Cinv int,
+		@Lmax int,
+		@Lmin int
+)
+ as
+ begin 
+update Limit  
+set Cinv=@Cinv,Lmax=@Lmax,Lmin=@Lmin
+end
+
+execute Initialize 20,100,5
+select * from Limit
+
+
+//月统计
+create procedure select_year_month (@year int, @month int)
+as
+begin
+select  Hno [商品类型编号],  --货物类型编号
+   sum( Inum) [总数量] ,
+    @year [年],
+    @month [月]
+ from I
+ where datepart(year,Itime)=@year and datepart(month,Itime)=@month
+ group by Hno,datepart(year,Itime),datepart(month,Itime)
+ end
+ 
+ drop procedure select_year_month
+ 
+ 
+ execute select_year_month 2019,6
+ 
+
+/* 
+declare @Itime as datetime
+select @Itime='2019-06-19'
+select year(@Itime) as [year],month(@Itime) as [month],day(@Itime) as [day]
+*/
+
+//年统计
+create procedure select_year(@year int)
+as
+begin
+select  Hno [编号],
+		sum(Inum) [总量],
+		@year [年份]
+from I
+where datepart(year,Itime)=@year
+ group by Hno,datepart(year,Itime)
+ end
+
+ drop procedure select_year
+ 
+ execute select_year 2019
+ 
+ 
+ ----可以查询产品入库情况、出库情况、当前库存情况，可以按出库单、入库单，产品、时间进行查询
+
+ 
+create procedure select_chuku_1 @Ono char(20)--按照出库单号查询
+as
+select *from O where Ono=@Ono
 GO
 
-execute insert_proc @Ino='I20190614151833',@Hno='V0003',@Cno='FZ_CS_GS_3592',@Inum=15,@Mno='A917181101',@Itime='2019-06-14 15:18:33.290'
+execute select_chuku_1 @Ono='O20190619200750'
 
 
-select *from I
-select *from Limit
+create procedure select_ruku_1 @Ino char(20)--按照入库单号查询
+as
+select *from I where Ino=@Ino
+GO
+execute select_ruku_1 @Ino='I20190619200713'
 
 
---drop procedure insert_proc
+drop procedure select_ruku_1
+
+create procedure select_chuku_2 @Hno char(20) --按照货物单号查询
+as
+select *from H where Hno=@Hno
+GO
+
+execute select_chuku_2 @Hno='V0023'
+select *from H
+
+create procedure select_ruku_2(@Itime datetime)--按照时间查询
+as
+select  *from I where Itime=@Itime
+GO
+
+execute select_ruku_2 @Itime='2019-06-19 20:07:18.507'
+
+
+
+
