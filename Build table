@@ -5,7 +5,7 @@ create table C
  Ccap int not null,                  --仓库容量
  Cadd nvarchar(100)                    --仓库地址
 )
-drop table G
+drop table Manager
 /*(2)仓库管理员*/
 CREATE TABLE Manager
 (Mno NCHAR(20) PRIMARY KEY,  --管理员编号
@@ -41,8 +41,10 @@ create table K
  Kname nvarchar(20) not null unique,  --客户姓名
  Ksex nchar(2),                       --客户性别
  Ktel nchar(11),                      --客户电话
- Kadd NVARCHAR(20)                    --客户地址
+ Kadd NVARCHAR(30)                    --客户地址
 ) 
+
+drop table Management
 
 /*(6)管理信息表*/
 CREATE TABLE Management
@@ -50,17 +52,23 @@ CREATE TABLE Management
  Mno NCHAR(20) ,             --管理员编号
  Mname NVARCHAR(10),        --管理员姓名
  Mtime NVARCHAR(22),        --管理员工作时间段
- PRIMARY KEY(Cno,Mno)
+ PRIMARY KEY(Cno,Mno),
+ FOREIGN KEY (Cno) REFERENCES C(Cno), --外键仓库编号
+ FOREIGN KEY (Mno) REFERENCES Manager(Mno),  --外键管理员编号
+ FOREIGN KEY (Mname) REFERENCES Manager(Mname)--外键管理员姓名
 )
-
+drop table G
 --(7)供应关系
-create table Supply        
+create table S       
 (Gno nchar(20),              --供应商编号
  Cno nchar(20),              --仓库编号
  Hno nchar(20),              --货物编号
  Snum int,                 --供应数量
  Stime datetime,           --供应时间
- primary key(Gno,Cno,Hno)
+ primary key(Gno,Cno,Hno),
+ FOREIGN KEY (Gno) REFERENCES G(Gno),--外键供应商编号
+ FOREIGN KEY (Cno) REFERENCES C(Cno),--外键仓库编号
+ FOREIGN KEY (Hno) REFERENCES H(Hno) --外键货物编号
 )
 
 /*(8)入库信息表*/
@@ -72,6 +80,9 @@ CREATE TABLE I
  Mno NCHAR(20) NOT NULL,     --管理员编号
  Itime DATETIME,           --入库时间
  PRIMARY KEY(Ino,Hno,Cno),
+ FOREIGN KEY (Cno) REFERENCES C(Cno),--外键仓库编号
+ FOREIGN KEY (Hno) REFERENCES H(Hno), --外键货物编号
+ FOREIGN KEY (Mno) REFERENCES Manager(Mno) --外键管理员编号
 )
 
 --(9)出库
@@ -80,21 +91,28 @@ create table O
  Hno nchar(20),              --货物编号
  Cno nchar(20),              --仓库编号
  Onum int not null,        --仓库量
- Gno nchar(20),              --管理员编号
+ Mno nchar(20),              --管理员编号
  Kno nchar(20),              --客户编号
  Otime datetime,           --出库时间
- primary key(Ono,Hno,Cno)
+ primary key(Ono,Hno,Cno),
+ FOREIGN KEY (Cno) REFERENCES C(Cno),--外键仓库编号
+ FOREIGN KEY (Hno) REFERENCES H(Hno), --外键货物编号
+ FOREIGN KEY (Mno) REFERENCES Manager(Mno), --外键管理员编号
+ FOREIGN KEY (Kno) REFERENCES K(Kno)--外键客户编号
 )
-
+drop table BR
 /*(10)租借归还信息表*/
 CREATE TABLE BR
-(Hno NCHAR(30),              --货物编号
- Kno NCHAR(30),              --客户编号
- Bno NCHAR(30),             --借条编号
- Bnum INT,                 --租借量
+(Jno NCHAR(30),              --借条编号
+ Kno NCHAR(20),              --客户编号
+ Hno NCHAR(20),             --货物编号
+ Bnum INT,                   --租借量
+ Rnum INT,                  --归还量
  Btime DATETIME,           --借出时间
  Rtime DATETIME,           --归还时间
- PRIMARY KEY(Hno,Kno,Bno)
+ PRIMARY KEY(Jno,Kno,Hno),
+ FOREIGN KEY (Hno) REFERENCES H(Hno), --外键货物编号
+ FOREIGN KEY (Kno) REFERENCES K(Kno) --外键客户编号
 )
 
 
@@ -105,7 +123,9 @@ CREATE TABLE Limit
  Lmin INT,                 --库存最小值
  Lmax INT,                 --库存最大值
  Cinv int,                 --库存量
- PRIMARY KEY(Hno,Cno)
+ PRIMARY KEY(Hno,Cno),
+ FOREIGN KEY (Cno) REFERENCES C(Cno),--外键仓库编号
+ FOREIGN KEY (Hno) REFERENCES H(Hno) --外键货物编号
 )
 
 select * from C
@@ -176,15 +196,18 @@ insert into Management values('FZ_CL_HS_3595','A917181106','冯红','8:30—18:0
 select *from Management
 
 --(7)供应关系
-insert into Supply values('201215121','FZ_MH_SJ_3591','V0009',909,'2019/2/23')
-insert into Supply values('201215123','FZ_CS_GS_3592','V0023',8090,'2019/6/2')
-insert into Supply values('201215134','FZ_TJ_ZQ_3593','V0003',9000,'2019/3/10')
-insert into Supply values('201215144','FZ_MW_GK_3594','V0008',6767,'2019/3/24')
-insert into Supply values('201215777','FZ_CL_HS_3595','V0090',555,'2019/4/17')
+insert into S values('201215121','FZ_MH_SJ_3591','V0009',909,'2019/2/23')
+insert into S values('201215123','FZ_CS_GS_3592','V0023',8090,'2019/6/2')
+insert into S values('201215134','FZ_TJ_ZQ_3593','V0003',9000,'2019/3/10')
+insert into S values('201215144','FZ_MW_GK_3594','V0008',6767,'2019/3/24')
+insert into S values('201215777','FZ_CL_HS_3595','V0090',555,'2019/4/17')
 
-select *from Supply
+select *from S
 
 --(8)入库
+insert into I values('I20180530083013','V0008','FZ_MH_SJ_3591',93,'A917181101','2018/5/30 08:30:13.673')
+insert into I values('I20180730083013','V0009','FZ_MH_SJ_3591',93,'A917181101','2018/7/30 08:30:13.673')
+insert into I values('I20170620083013','V0008','FZ_MH_SJ_3591',93,'A917181101','2017/6/20 08:30:13.673')
 insert into I values('I'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0009','FZ_MH_SJ_3591',909,'A917181101',GETDATE())
 insert into I values('I'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0023','FZ_CS_GS_3592',8090,'A917181102',GETDATE())
 insert into I values('I'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0003','FZ_TJ_ZQ_3593',9000,'A917181103',GETDATE())
@@ -194,7 +217,6 @@ insert into I values('I'+replace(replace(replace(convert(varchar,getdate(),120),
 select *from I 
 
 --(9)出库
-
 insert into O values('O'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0009','FZ_MH_SJ_3591',382,'A917181101','K4362610',GETDATE())
 insert into O values('O'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0023','FZ_CS_GS_3592',410,'A917181102','K4362611',GETDATE())
 insert into O values('O'+replace(replace(replace(convert(varchar,getdate(),120),'-',''),' ',''),':',''),'V0003','FZ_TJ_ZQ_3593',1000,'A917181103','K4362612',GETDATE())
@@ -204,21 +226,21 @@ insert into O values('O'+replace(replace(replace(convert(varchar,getdate(),120),
 select *from O 
 
 --(10)借还
-insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362610','J120328301',100,'2019/4/30 08:55:03.673',GETDATE())
-insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362611','J120328302',10,'2019/6/12 09:55:47.673',GETDATE())
-insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362612','J120328303',23,'2019/5/30 08:30:13.673',GETDATE())
-insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362613','J120328304',500,'2019/4/22 10:55:56.673',GETDATE())
-insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362614','J120328305',432,'2019/5/2 08:45:47.673',GETDATE())
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362610','V0009',100,100,'2019/4/30 08:55:03.673',GETDATE())
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362611','V0023',10,10,'2019/6/12 09:55:47.673',GETDATE())
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362612','V0003',23,10,'2019/5/30 08:30:13.673',GETDATE())
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362613','V0008',500,500,'2019/4/22 10:55:56.673',GETDATE())
+insert into BR values('O'+replace(replace(replace(convert(nvarchar,getdate(),120),'-',''),' ',''),':',''),'K4362614','V0090',432,432,'2019/5/2 08:45:47.673',GETDATE())
 
 select *from BR
 
 
 --(11)库存限制
-insert into Limit values('D0009','V0009',100,90000,909)
-insert into Limit values('D0092','V0023',100,90000,8090)
-insert into Limit values('D0003','V0003',100,90000,9000)
-insert into Limit values('D0219','V0008',100,90000,6767)
-insert into Limit values('D0999','V0090',100,90000,555)
+insert into Limit values('FZ_MH_SJ_3591','V0009',100,90000,909)
+insert into Limit values('FZ_CS_GS_3592','V0023',100,90000,8090)
+insert into Limit values('FZ_TJ_ZQ_3593','V0003',100,90000,9000)
+insert into Limit values('FZ_MW_GK_3594','V0008',100,90000,6767)
+insert into Limit values('FZ_CL_HS_3595','V0090',100,90000,555)
 
 select *from Limit
 
